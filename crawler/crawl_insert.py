@@ -33,7 +33,7 @@ def get_hhad(data):
     h_value = latest_entry["h"]
 
     # print(f"最新的数据为: a={a_value}, d={d_value}, h={h_value}")
-    return [h_value, d_value, d_value]
+    return [h_value, a_value, d_value]
 
 
 def get_ttg(data):
@@ -120,7 +120,6 @@ def get_meta(data):
     lst.append(meta_list["awayTeamAllName"])
 
     meta_list = data["value"]["matchResultList"]
-
     for item in meta_list:
         if item["code"] == "HHAD":
             lst.append(item["combinationDesc"])
@@ -128,7 +127,7 @@ def get_meta(data):
             lst.append(item["combinationDesc"])
         elif item["code"] == "CRS":
             lst.append(item["combinationDesc"])
-
+    
     # print(lst)
     return lst
 
@@ -354,19 +353,26 @@ if __name__ == "__main__":
     league_id = "72"
 
     # 爬取所有比赛 ID gmMatchId
-    match_ids, match_dates = crawl_match_ids(start_date, end_date, season_id, league_id)
+    match_ids, match_dates, match_bcs = crawl_match_ids(start_date, end_date, season_id, league_id)
     # print(f"获取到的比赛 ID: {match_ids}")
     # print(f"获取到的比赛日期: {match_dates}")
 
-    # 爬取赔率数据
+    # 爬取赔率数据（有些赔率数据有缺失，需要丢弃）
     all_data, remove_idx = crawl_match_bet(match_ids)
     new_match_ids = [item for i, item in enumerate(match_ids) if i not in remove_idx]
     new_match_dates = [
         item for i, item in enumerate(match_dates) if i not in remove_idx
     ]
+    new_match_bcs = [item for i, item in enumerate(match_bcs) if i not in remove_idx]
     print(f"获取到的比赛 ID: {new_match_ids}")
     print(f"获取到的比赛日期: {new_match_dates}")
+    print(f"获取到的比赛半场比分:\n{new_match_bcs}")
 
     print(len(all_data), len(new_match_ids), len(new_match_dates))
 
+    # HINT 已经获取了半场比分数据，但是没有插入到数据库中
     insert_all_data(all_data, new_match_ids, new_match_dates)
+
+    # TODO 更新最新数据到数据库，包括 1、更新已有比赛赔率 2、加入最新比赛赔率
+    # 获取一段时期的全部gmMatchId
+    match_ids, match_dates, match_bcs = crawl_match_ids(start_date, end_date, season_id, league_id)

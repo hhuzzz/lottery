@@ -4,9 +4,10 @@ from datetime import datetime, timedelta
 
 
 def get_match_id(data):
-    """解析比赛数据并提取 matchId"""
+    """解析比赛数据并提取 matchId，另外在提起match_date和半场比分"""
     match_id_list = []
     match_date_list = []
+    match_bc_list = []
     for sub_match in data["value"]["matchList"]:
         for k, match in sub_match.items():
             if k == "matchDate" or k == "isToday":
@@ -14,8 +15,9 @@ def get_match_id(data):
             for details in match:
                 if details["gmMatchId"] != 0:
                     match_id_list.append(details["gmMatchId"])
-                    match_date_list.append(sub_match['matchDate'])
-    return match_id_list, match_date_list
+                    match_date_list.append(sub_match["matchDate"])
+                    match_bc_list.append(details["sectionsNo1"])
+    return match_id_list, match_date_list, match_bc_list
 
 
 def fetch_data(start_date, end_date, season_id, league_id):
@@ -43,6 +45,7 @@ def crawl_match_ids(start_date, end_date, season_id, league_id):
     current_date = start_date
     all_match_ids = []
     all_match_dates = []
+    all_match_bcs = []
     while current_date < end_date:
         # 确定当前的 7 天范围
         range_start = current_date
@@ -52,15 +55,16 @@ def crawl_match_ids(start_date, end_date, season_id, league_id):
         print(f"正在获取 {range_start} 到 {range_end} 的比赛数据...")
         data = fetch_data(range_start, range_end, season_id, league_id)
         if data:
-            match_ids, match_dates = get_match_id(data)
+            match_ids, match_dates, match_bc = get_match_id(data)
             all_match_ids.extend(match_ids)
             all_match_dates.extend(match_dates)
+            all_match_bcs.extend(match_bc)
         else:
             print(f"未能获取 {range_start} 到 {range_end} 的数据")
 
         # 更新日期，进入下一周
         current_date += timedelta(days=7)
-    return all_match_ids, all_match_dates
+    return all_match_ids, all_match_dates, all_match_bcs
 
 
 if __name__ == "__main__":
@@ -72,7 +76,8 @@ if __name__ == "__main__":
     league_id = "72"
 
     # 爬取所有比赛 ID gmMatchId
-    match_ids, match_dates = crawl_match_ids(start_date, end_date, season_id, league_id)
-    assert len(match_ids) == len(match_dates), '爬取错误'
+    match_ids, match_dates, match_bcs = crawl_match_ids(start_date, end_date, season_id, league_id)
+    assert len(match_ids) == len(match_dates), "爬取错误"
     print(f"获取到的比赛 ID: {match_ids}")
     print(f"获取到的比赛日期: {match_dates}")
+    print(f"获取到的比赛半场比分: {match_bcs}")
