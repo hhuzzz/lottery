@@ -97,11 +97,12 @@ def get_suggestion():
     data = request.get_json()
     team1 = data["team1"]
     team2 = data["team2"]
+    money = data["money"]
 
     # print(team1, team2)
     bet_data_prompt = get_match_data_prompt(team1, team2)
     print(bet_data_prompt)
-    prompt = enhance_prompt(bet_data_prompt)
+    prompt = enhance_prompt(bet_data_prompt, money)
     messages = [{"role": "user", "content": prompt}]
     response = dashscope.Generation.call(
         api_key="sk-1be4aa15c53f4f4ab130bad9170e124f",
@@ -112,17 +113,29 @@ def get_suggestion():
     )
     print(type(response))
     print(response)
-
-    # 正则表达式提取信息
-    suggestion = response["output"]["choices"][0]["message"]["content"]
-    result_parrern = r'%%(.*?)%%'
-    result_matches = re.search(result_parrern,suggestion)
-    print(result_matches)
-
-    if response.status_code == 200:
-        return jsonify({"suggestion": result_matches[0]})
-    else:
+    if response.status_code != 200:
         return jsonify({"error": "模型出错"})
+
+    def re_extract(response):
+        # 正则表达式提取信息
+        suggestion = response["output"]["choices"][0]["message"]["content"]
+        result_parrern = r'%%(.*?)%%'
+        result_matches = re.search(result_parrern,suggestion)
+        
+        # 使用正则表达式提取括号中的内容和购买金额
+        pattern = r"【.*?\((.*?)\)，购买金额：(.*?)元】"
+        list_matches = re.findall(pattern, result_matches[0])
+        # 判断总金额是否正确
+        total = sum([int(match[1]) for match in list_matches])
+        if total != money:
+            return jsonify({"error": "模型出错，投注金额不对"})
+        # 将提取出来的内容构造为所需的格式
+        result = [f"{match[0]}，购买金额：{match[1]}元" for match in list_matches]
+        return result
+
+    result = re_extract(response)
+
+    return jsonify({"suggestion": result})
 
 
 # 根据球队名获取最新赔率数据
@@ -158,42 +171,43 @@ def get_match_data_prompt(team1, team2):
     data = cursor.fetchall()[0]
     cursor.close()
 
+    def data2prompt(team1, team2):
+        prompt = f"主球队1:{team1}\n客球队2:{team2}\n"
+        # 非让球
+        prompt += f"玩法1：非让球胜，对应的赔率： {data['h']}\n玩法2：非让球平，对应的赔率： {data['d']}\n玩法3：非让球负，对应的赔率： {data['a']}1.76\n"
+        # 让球
+        prompt += f"玩法4：非让球胜，对应的赔率： {data['rh']}\n玩法5：非让球平，对应的赔率： {data['rd']}\n玩法6：非让球负，对应的赔率： {data['ra']}1.76\n"
+        # 比分
+        prompt += f"玩法7：1:0，对应的赔率： {data['s01s00']}\n玩法8：2:0，对应的赔率： {data['s02s00']}\n玩法9：2:1，对应的赔率： {data['s02s01']}\n"
+        prompt += f"玩法10：3:0，对应的赔率： {data['s03s00']}\n玩法11：3:1，对应的赔率： {data['s03s01']}\n玩法12：3:2，对应的赔率： {data['s03s02']}\n"
+        prompt += f"玩法13：4:0，对应的赔率： {data['s04s00']}\n玩法14：4:1，对应的赔率： {data['s04s01']}\n玩法15：4:2，对应的赔率： {data['s04s02']}\n"
+        prompt += f"玩法16：5:0，对应的赔率： {data['s05s00']}\n玩法17：5:1，对应的赔率： {data['s05s01']}\n玩法18：5:2，对应的赔率： {data['s05s02']}\n"
+        prompt += f"玩法19：胜其他，对应的赔率： {data['s_1sh']}\n玩法20：0:0，对应的赔率： {data['s00s00']}\n玩法21：1:1，对应的赔率： {data['s01s01']}\n"
+        prompt += f"玩法22：2:2，对应的赔率： {data['s02s02']}\n玩法23：3:3，对应的赔率： {data['s03s03']}\n玩法24：平其他，对应的赔率： {data['s_1sd']}\n"
+        prompt += f"玩法25：0:1，对应的赔率： {data['s00s01']}\n玩法26：0:2，对应的赔率： {data['s00s02']}\n玩法27：1:2，对应的赔率： {data['s01s02']}\n"
+        prompt += f"玩法28：0:3，对应的赔率： {data['s00s03']}\n玩法29：1:3，对应的赔率： {data['s01s03']}\n玩法30：2:3，对应的赔率： {data['s02s03']}\n"
+        prompt += f"玩法31：0:4，对应的赔率： {data['s00s04']}\n玩法32：1:4，对应的赔率： {data['s01s04']}\n玩法33：2:4，对应的赔率： {data['s02s04']}\n"
+        prompt += f"玩法34：0:5，对应的赔率： {data['s00s05']}\n玩法35：1:5，对应的赔率： {data['s01s05']}\n玩法36：2:5，对应的赔率： {data['s02s05']}\n"
+        prompt += f"玩法37：负其他，对应的赔率： {data['s_1sa']}\n"
+        # 进球数
+        prompt += f"玩法38：进球数：0，对应的赔率： {data['s0']}\n玩法39：进球数：1，对应的赔率： {data['s1']}\n玩法40：进球数：2，对应的赔率： {data['s2']}\n"
+        prompt += f"玩法41：进球数：3，对应的赔率： {data['s3']}\n玩法42：进球数：4，对应的赔率： {data['s4']}\n玩法43：进球数：5，对应的赔率： {data['s5']}\n"
+        prompt += f"玩法44：进球数：6，对应的赔率： {data['s6']}\n玩法45：进球数：7+，对应的赔率： {data['s7']}\n"
+        # 半场胜平负
+        prompt += f"玩法46：胜胜，对应的赔率： {data['hh']}\n玩法47：胜平，对应的赔率： {data['hd']}\n玩法48：胜负，对应的赔率： {data['ha']}\n"
+        prompt += f"玩法49：平胜，对应的赔率： {data['dh']}\n玩法50：平平，对应的赔率： {data['dd']}\n玩法51：平负，对应的赔率： {data['da']}\n"
+        prompt += f"玩法52：负胜，对应的赔率： {data['ah']}\n玩法53：负平，对应的赔率： {data['ad']}\n玩法54：负负，对应的赔率： {data['aa']}\n"
+        return prompt
     # 将data转换成prompt
-    prompt = data2prompt(data, team1, team2)
+    prompt = data2prompt(team1, team2)
     return prompt
 
 
-def data2prompt(data, team1, team2):
-    prompt = f"主球队1:{team1}\n客球队2:{team2}\n"
-    # 非让球
-    prompt += f"玩法1：非让球胜，对应的赔率： {data['h']}\n玩法2：非让球平，对应的赔率： {data['d']}\n玩法3：非让球负，对应的赔率： {data['a']}1.76\n"
-    # 让球
-    prompt += f"玩法4：非让球胜，对应的赔率： {data['rh']}\n玩法5：非让球平，对应的赔率： {data['rd']}\n玩法6：非让球负，对应的赔率： {data['ra']}1.76\n"
-    # 比分
-    prompt += f"玩法7：1:0，对应的赔率： {data['s01s00']}\n玩法8：2:0，对应的赔率： {data['s02s00']}\n玩法9：2:1，对应的赔率： {data['s02s01']}\n"
-    prompt += f"玩法10：3:0，对应的赔率： {data['s03s00']}\n玩法11：3:1，对应的赔率： {data['s03s01']}\n玩法12：3:2，对应的赔率： {data['s03s02']}\n"
-    prompt += f"玩法13：4:0，对应的赔率： {data['s04s00']}\n玩法14：4:1，对应的赔率： {data['s04s01']}\n玩法15：4:2，对应的赔率： {data['s04s02']}\n"
-    prompt += f"玩法16：5:0，对应的赔率： {data['s05s00']}\n玩法17：5:1，对应的赔率： {data['s05s01']}\n玩法18：5:2，对应的赔率： {data['s05s02']}\n"
-    prompt += f"玩法19：胜其他，对应的赔率： {data['s_1sh']}\n玩法20：0:0，对应的赔率： {data['s00s00']}\n玩法21：1:1，对应的赔率： {data['s01s01']}\n"
-    prompt += f"玩法22：2:2，对应的赔率： {data['s02s02']}\n玩法23：3:3，对应的赔率： {data['s03s03']}\n玩法24：平其他，对应的赔率： {data['s_1sd']}\n"
-    prompt += f"玩法25：0:1，对应的赔率： {data['s00s01']}\n玩法26：0:2，对应的赔率： {data['s00s02']}\n玩法27：1:2，对应的赔率： {data['s01s02']}\n"
-    prompt += f"玩法28：0:3，对应的赔率： {data['s00s03']}\n玩法29：1:3，对应的赔率： {data['s01s03']}\n玩法30：2:3，对应的赔率： {data['s02s03']}\n"
-    prompt += f"玩法31：0:4，对应的赔率： {data['s00s04']}\n玩法32：1:4，对应的赔率： {data['s01s04']}\n玩法33：2:4，对应的赔率： {data['s02s04']}\n"
-    prompt += f"玩法34：0:5，对应的赔率： {data['s00s05']}\n玩法35：1:5，对应的赔率： {data['s01s05']}\n玩法36：2:5，对应的赔率： {data['s02s05']}\n"
-    prompt += f"玩法37：负其他，对应的赔率： {data['s_1sa']}\n"
-    # 进球数
-    prompt += f"玩法38：进球数：0，对应的赔率： {data['s0']}\n玩法39：进球数：1，对应的赔率： {data['s1']}\n玩法40：进球数：2，对应的赔率： {data['s2']}\n"
-    prompt += f"玩法41：进球数：3，对应的赔率： {data['s3']}\n玩法42：进球数：4，对应的赔率： {data['s4']}\n玩法43：进球数：5，对应的赔率： {data['s5']}\n"
-    prompt += f"玩法44：进球数：6，对应的赔率： {data['s6']}\n玩法45：进球数：7+，对应的赔率： {data['s7']}\n"
-    # 半场胜平负
-    prompt += f"玩法46：胜胜，对应的赔率： {data['hh']}\n玩法47：胜平，对应的赔率： {data['hd']}\n玩法48：胜负，对应的赔率： {data['ha']}\n"
-    prompt += f"玩法49：平胜，对应的赔率： {data['dh']}\n玩法50：平平，对应的赔率： {data['dd']}\n玩法51：平负，对应的赔率： {data['da']}\n"
-    prompt += f"玩法52：负胜，对应的赔率： {data['ah']}\n玩法53：负平，对应的赔率： {data['ad']}\n玩法54：负负，对应的赔率： {data['aa']}\n"
-    return prompt
 
-def enhance_prompt(bet_data_prompt):
+
+def enhance_prompt(bet_data_prompt, money):
     prompt = f"""
-            请分析这个赔率，并结合2队的最近比赛数据，给我一个尽量不亏钱的高概率的投注组合，投注金额200元\n
+            请分析这个赔率，并结合2队的最近比赛数据，给我一个尽量不亏钱的高概率的投注组合，投注金额{money}元\n
 以下为比赛的信息及赔率数据：{bet_data_prompt}\n
 
 基于这些数据，我希望你提供一个系统性的投注建议，确保建议的科学性、合理性和高效性。请按以下步骤进行详细分析，最大化保本，按照每次50元投注，每个投注选项是2元的整数倍。\n
