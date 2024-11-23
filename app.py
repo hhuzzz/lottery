@@ -105,7 +105,7 @@ def get_suggestion():
     prompt = enhance_prompt(bet_data_prompt, money)
     messages = [{"role": "user", "content": prompt}]
     response = dashscope.Generation.call(
-        api_key="sk-1be4aa15c53f4f4ab130bad9170e124f",
+        api_key="sk-1be4aa15c53f4f4ab130bad9170e124fhuhuan",
         model="qwen-max-2024-09-19",
         messages=messages,
         result_format="message",
