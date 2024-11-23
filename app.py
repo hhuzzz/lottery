@@ -134,7 +134,8 @@ def get_suggestion():
         return result
 
     result = re_extract(response)
-
+    print(result)
+    print(type(result))
     return jsonify({"suggestion": result})
 
 
@@ -174,9 +175,9 @@ def get_match_data_prompt(team1, team2):
     def data2prompt(team1, team2):
         prompt = f"主球队1:{team1}\n客球队2:{team2}\n"
         # 非让球
-        prompt += f"玩法1：非让球胜，对应的赔率： {data['h']}\n玩法2：非让球平，对应的赔率： {data['d']}\n玩法3：非让球负，对应的赔率： {data['a']}1.76\n"
+        prompt += f"玩法1：非让球胜，对应的赔率： {data['h']}\n玩法2：非让球平，对应的赔率： {data['d']}\n玩法3：非让球负，对应的赔率： {data['a']}\n"
         # 让球
-        prompt += f"玩法4：非让球胜，对应的赔率： {data['rh']}\n玩法5：非让球平，对应的赔率： {data['rd']}\n玩法6：非让球负，对应的赔率： {data['ra']}1.76\n"
+        prompt += f"玩法4：让球胜，对应的赔率： {data['rh']}\n玩法5：让球平，对应的赔率： {data['rd']}\n玩法6：让球负，对应的赔率： {data['ra']}\n"
         # 比分
         prompt += f"玩法7：1:0，对应的赔率： {data['s01s00']}\n玩法8：2:0，对应的赔率： {data['s02s00']}\n玩法9：2:1，对应的赔率： {data['s02s01']}\n"
         prompt += f"玩法10：3:0，对应的赔率： {data['s03s00']}\n玩法11：3:1，对应的赔率： {data['s03s01']}\n玩法12：3:2，对应的赔率： {data['s03s02']}\n"

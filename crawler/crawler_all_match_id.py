@@ -67,6 +67,38 @@ def crawl_match_ids(start_date, end_date, season_id, league_id):
     return all_match_ids, all_match_dates, all_match_bcs
 
 
+# 爬取五大联赛一段时间的match_id
+def crawl_five_league_match_ids(start_date, end_date, leagues):
+    """爬取从 start_date 到 end_date 之间的所有比赛 ID"""
+    current_date = start_date
+    all_match_ids = []
+    all_match_dates = []
+    all_match_bcs = []
+
+
+    while current_date < end_date:
+        for league_name, league_info in leagues.items():
+            season_id = league_info["season_id"]
+            league_id = league_info["league_id"]
+            print(f"开始爬取 {league_name}, {season_id}, {league_id}")
+            # 确定当前的 7 天范围
+            range_start = current_date
+            range_end = min(current_date + timedelta(days=6), end_date)
+
+            # 请求数据
+            print(f"正在获取 {range_start} 到 {range_end} 的比赛数据...")
+            data = fetch_data(range_start, range_end, season_id, league_id)
+            if data:
+                match_ids, match_dates, match_bc = get_match_id(data)
+                all_match_ids.extend(match_ids)
+                all_match_dates.extend(match_dates)
+                all_match_bcs.extend(match_bc)
+            else:
+                print(f"未能获取 {range_start} 到 {range_end} 的数据")
+        # 更新日期，进入下一周
+        current_date += timedelta(days=7)
+    return all_match_ids, all_match_dates, all_match_bcs
+
 if __name__ == "__main__":
     # 起始日期和结束日期
     start_date = datetime(2024, 8, 16)
