@@ -156,7 +156,7 @@ def insert_database(
     connection = pymysql.connect(
         host="localhost",  # 数据库地址
         user="root",  # 用户名
-        password="root",  # 密码
+        password="123456",  # 密码
         database="lottery",  # 数据库名称
         charset="utf8mb4",  # 字符集
     )

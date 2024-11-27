@@ -1,17 +1,17 @@
 import requests
 import json
-from datetime import datetime, timedelta
+import datetime
+from datetime import timedelta, date
 import pymysql
-from crawler_all_match_id import crawl_match_ids, crawl_five_league_match_ids
-from crawl_insert import crawl_match_bet, insert_all_data
-
+from .crawler_all_match_id import crawl_match_ids, crawl_five_league_match_ids
+from .crawl_insert import crawl_match_bet, insert_all_data
 
 def query_match_ids_by_date_range(start_date, end_date):
     # 数据库连接配置
     connection = pymysql.connect(
         host="localhost",  # 数据库地址
         user="root",  # 用户名
-        password="root",  # 密码
+        password="123456",  # 密码
         database="lottery",  # 数据库名称
         charset="utf8mb4",  # 字符集
     )
@@ -49,7 +49,7 @@ def insert_or_update(all_data, match_ids, match_dates, cur_match_ids):
     connection = pymysql.connect(
         host="localhost",  # 数据库地址
         user="root",  # 用户名
-        password="root",  # 密码
+        password="123456",  # 密码
         database="lottery",  # 数据库名称
         charset="utf8mb4",  # 字符集
     )
@@ -180,11 +180,16 @@ def insert_or_update(all_data, match_ids, match_dates, cur_match_ids):
         cursor.close()
         connection.close()
 
-
-if __name__ == "__main__":
+def crawl_insert_newest_match():
+    # 获取当前日期
+    today = date.today()
     # 起始日期和结束日期
-    start_date = datetime(2024, 11, 23)
-    end_date = datetime(2024, 11, 29)
+    start_date = today
+    end_date = start_date + datetime.timedelta(days=6)
+
+    # # 起始日期和结束日期
+    # start_date = datetime(2024, 11, 23)
+    # end_date = datetime(2024, 11, 29)
 
     leagues = {
         "英超 2024-2025": {"season_id": "11817", "league_id": "72"},
@@ -221,3 +226,6 @@ if __name__ == "__main__":
     print(f"已有比赛id{cur_match_ids}")
 
     insert_or_update(all_data, new_match_ids, new_match_dates, cur_match_ids)
+
+if __name__ == "__main__":
+    crawl_insert_newest_match()
