@@ -4,6 +4,9 @@ from datetime import date, datetime
 import pymysql
 import dashscope
 import re
+from flask_apscheduler import APScheduler
+import atexit
+import fcntl
 
 app = Flask(__name__)
 app.config.from_object(config)
@@ -12,10 +15,35 @@ app.config.from_object(config)
 connection = pymysql.connect(
     host="localhost",  # 数据库地址
     user="root",  # 用户名
-    password="root",  # 密码
+    password="123456",  # 密码
     database="lottery",  # 数据库名称
     charset="utf8mb4",  # 字符集
 )
+
+# 添加任务
+from crawler.crawl_insert_newest_match import crawl_insert_newest_match
+
+def lock_func():
+    f = open("scheduler.lock", "wb")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        crawl_insert_newest_match()
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        f.close()
+    except:
+        print('当前爬虫任务正在执行，直接跳过')
+
+
+scheduler = APScheduler()
+scheduler.init_app(app)
+scheduler.add_job(
+    id='crawl_insert_task',  # 任务 ID
+    func=lock_func,  # 任务函数
+    trigger='interval',  # 触发类型：间隔
+    days=1,  # 每隔 1 天运行一次
+    start_date='2024-11-27 00:00:00',  # 可选：任务开始时间
+)
+scheduler.start()
 
 
 @app.route("/api/getAllCompetitions", methods=["GET"])
@@ -42,8 +70,8 @@ def get_all_matches():
         JOIN match_crs t6 ON t1.match_id = t6.match_id
         WHERE date = %s
     """
-    cursor.execute(query, ("2024-08-17"))
-    # cursor.execute(query, (today))
+    # cursor.execute(query, ("2024-11-26"))
+    cursor.execute(query, (today))
     matches = cursor.fetchall()  # 获取所有匹配数据
     # print(type(matches), type(matches[0]))
     # 关闭数据库连接
@@ -105,7 +133,7 @@ def get_suggestion():
     prompt = enhance_prompt(bet_data_prompt, money)
     messages = [{"role": "user", "content": prompt}]
     response = dashscope.Generation.call(
-        api_key="sk-1be4aa15c53f4f4ab130bad9170e124fhuhuan",
+        api_key="sk-2447021f124c4e2c92d92164653db434",
         model="qwen-max-2024-09-19",
         messages=messages,
         result_format="message",
@@ -247,5 +275,10 @@ def enhance_prompt(bet_data_prompt, money):
     """
     return prompt
 
+
+# init(app)
+# app.run(host='0.0.0.0', port=5000)
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000)
