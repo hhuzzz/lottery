@@ -5,20 +5,12 @@ import pymysql
 import dashscope
 import re
 from flask_apscheduler import APScheduler
-import atexit
+from blueprints import user_bp
 import fcntl
 
 app = Flask(__name__)
+app.register_blueprint(user_bp)
 app.config.from_object(config)
-
-# 数据库连接配置
-connection = pymysql.connect(
-    host="localhost",  # 数据库地址
-    user="root",  # 用户名
-    password="123456",  # 密码
-    database="lottery",  # 数据库名称
-    charset="utf8mb4",  # 字符集
-)
 
 # 添加任务
 from crawler.crawl_insert_newest_match import crawl_insert_newest_match
@@ -41,13 +33,21 @@ scheduler.add_job(
     func=lock_func,  # 任务函数
     trigger='interval',  # 触发类型：间隔
     days=1,  # 每隔 1 天运行一次
-    start_date='2024-11-27 00:00:00',  # 可选：任务开始时间
+    start_date='2024-11-28 14:04:00',  # 可选：任务开始时间
 )
 scheduler.start()
 
 
 @app.route("/api/getAllCompetitions", methods=["GET"])
 def get_all_matches():
+    # 数据库连接配置
+    connection = pymysql.connect(
+        host="localhost",  # 数据库地址
+        user="root",  # 用户名
+        password="123456",  # 密码
+        database="lottery",  # 数据库名称
+        charset="utf8mb4",  # 字符集
+    )
     # 获取当前日期（格式：YYYY-MM-DD）
     today = date.today().strftime("%Y-%m-%d")
     # 执行查询：查找当天的比赛
@@ -70,53 +70,90 @@ def get_all_matches():
         JOIN match_crs t6 ON t1.match_id = t6.match_id
         WHERE date = %s
     """
-    # cursor.execute(query, ("2024-11-26"))
-    cursor.execute(query, (today))
+    cursor.execute(query, ("2024-11-23"))
+    # cursor.execute(query, (today))
     matches = cursor.fetchall()  # 获取所有匹配数据
     # print(type(matches), type(matches[0]))
     # 关闭数据库连接
     cursor.close()
+    connection.close()
 
     # 如果没有找到数据，返回一个空列表
     if not matches:
-        return jsonify({"message": "No matches found for today."}), 404
+        # return jsonify({"message": "No matches found for today."}), 404
+        return jsonify({"data":{}, "msg":"未查询到今日比赛", "code":200})
 
+    msg = [['主队','客队','让球胜平负','半全场胜平负','比分', '非让球胜','非让球负','非让球平','让球胜','让球负','让球平',
+            '负负','负平','负胜','平负','平平','平胜','胜负','胜平','胜胜','总进球0','总进球1','总进球2','总进球3','总进球4','总进球5','总进球6','总进球7+',
+            '1:0','2:0','2:1','3:0','3:1','3:2','4:0','4:1','4:2','5:0','5:1','5:2','胜其它','0:0','1:1','2:2','3:3','平其它','0:1','0:2','1:2','0:3','1:3','2:3','0:4','1:4','2:4','0:5','1:5','2:5','负其它']]
     for match in matches:
         match["date"] = match["date"].strftime("%Y-%m-%d")
-
+        tmp = []
+        for k, v in match.items():
+            if k == 'match_id' or k == 'date':
+                continue
+            tmp.append(v)
+        msg.append(tmp)
+    
     # 返回比赛信息
-    return jsonify({"matches": matches})
+    # return jsonify({"matches": msg})
+    return jsonify({"data":{"matches": msg}, "msg":"查询成功", "code":200})
 
 
 @app.route("/api/getCompetitionDetails", methods=["GET"])
 def get_comp_details():
+    # 数据库连接配置
+    connection = pymysql.connect(
+        host="localhost",  # 数据库地址
+        user="root",  # 用户名
+        password="123456",  # 密码
+        database="lottery",  # 数据库名称
+        charset="utf8mb4",  # 字符集
+    )
     team1 = request.args.get("team1")
     team2 = request.args.get("team2")
-    if team1 == None or team2 == None:
-        return jsonify({"message": "No team name provided."}), 400
+    if (team1 == None and team2 == None) or (team1 == None and team2 != None):
+        return jsonify({"data":{}, "msg":"未提供队伍名称", "code":400})
     # 执行查询：查找当天的比赛
     cursor = connection.cursor(pymysql.cursors.DictCursor)  # 使用字典游标获取字段名作为键
-    query = """
-        SELECT t1.team_home, t1.team_away, t1.hhad, t1.hafu, t1.crs, t1.date
-        FROM match_result t1
-        WHERE t1.team_home = %s AND t1.team_away = %s OR t1.team_home = %s AND t1.team_away = %s
-    """
-    cursor.execute(query, (team1, team2, team2, team1))
-    matches = cursor.fetchall()  # 获取所有匹配数据
+    if team1 != None and team2 == None:
+        query = """
+            SELECT t1.team_home, t1.team_away, t1.hhad, t1.hafu, t1.crs, t1.date
+            FROM match_result t1
+            WHERE t1.team_home = %s OR t1.team_away = %s
+            ORDER BY t1.date DESC;
+        """
+        cursor.execute(query, (team1, team1))
+        matches = cursor.fetchall()  # 获取所有匹配数据
+        if not matches:
+            return jsonify({"data":{}, "msg":"未找到该队伍比赛记录", "code":500})
+    else:
+        query = """
+            SELECT t1.team_home, t1.team_away, t1.hhad, t1.hafu, t1.crs, t1.date
+            FROM match_result t1
+            WHERE t1.team_home = %s AND t1.team_away = %s OR t1.team_home = %s AND t1.team_away = %s
+            ORDER BY t1.date DESC;
+        """
+        cursor.execute(query, (team1, team2, team2, team1))
+        matches = cursor.fetchall()  # 获取所有匹配数据
+        if not matches:
+            return jsonify({"data":{}, "msg":"未找到两支队伍比赛记录", "code":500})
     # 关闭数据库连接
     cursor.close()
+    connection.close()
 
-    # 如果没有找到数据，返回一个空列表
-    if not matches:
-        return jsonify({"message": "No matches found for two team."}), 404
-
+    msg = [['主队','客队','让球胜平负','半全场胜平负','总比分','比赛日期']]
     for match in matches:
         match["date"] = match["date"].strftime("%Y-%m-%d")
         nums = match["crs"].split(":")
-        match["total"] = int(nums[0]) + int(nums[1])
+        # match["total"] = int(nums[0]) + int(nums[1])
+        tmp = []
+        for _, v in match.items():
+            tmp.append(v)
+        msg.append(tmp)
 
     # 返回比赛信息
-    return jsonify({"matches": matches})
+    return jsonify({"data":{"matches": msg}, "msg":"查询成功", "code":200})
 
 
 @app.route("/api/getSuggestions", methods=["POST"])
@@ -139,14 +176,14 @@ def get_suggestion():
         result_format="message",
         enable_search=True,
     )
-    print(type(response))
-    print(response)
+
     if response.status_code != 200:
-        return jsonify({"error": "模型出错"})
+        return jsonify({"data":{}, "msg":"大模型api出错", "code":500})
 
     def re_extract(response):
         # 正则表达式提取信息
         suggestion = response["output"]["choices"][0]["message"]["content"]
+        # print(f'suggestion:{suggestion}')
         result_parrern = r'%%(.*?)%%'
         result_matches = re.search(result_parrern,suggestion)
         
@@ -156,19 +193,27 @@ def get_suggestion():
         # 判断总金额是否正确
         total = sum([int(match[1]) for match in list_matches])
         if total != money:
-            return jsonify({"error": "模型出错，投注金额不对"})
+            return jsonify({"data":{}, "msg":"模型出错，投注金额不对", "code":200})
         # 将提取出来的内容构造为所需的格式
         result = [f"{match[0]}，购买金额：{match[1]}元" for match in list_matches]
+        print(type(result), result)
         return result
 
-    result = re_extract(response)
-    print(result)
-    print(type(result))
-    return jsonify({"suggestion": result})
+    ans = re_extract(response)
+    # print('hello')
+    return jsonify({"data":{"suggestion": ans}, "msg":"大模型输出成功", "code":200})
 
 
 # 根据球队名获取最新赔率数据
 def get_match_data_prompt(team1, team2):
+    # 数据库连接配置
+    connection = pymysql.connect(
+        host="localhost",  # 数据库地址
+        user="root",  # 用户名
+        password="123456",  # 密码
+        database="lottery",  # 数据库名称
+        charset="utf8mb4",  # 字符集
+    )
     cursor = connection.cursor(pymysql.cursors.DictCursor)
     query_get_match_id = """
         SELECT match_id 
@@ -199,6 +244,7 @@ def get_match_data_prompt(team1, team2):
     cursor.execute(query_get_match_data, (match_id))
     data = cursor.fetchall()[0]
     cursor.close()
+    connection.close()
 
     def data2prompt(team1, team2):
         prompt = f"主球队1:{team1}\n客球队2:{team2}\n"
@@ -279,6 +325,15 @@ def enhance_prompt(bet_data_prompt, money):
 # init(app)
 # app.run(host='0.0.0.0', port=5000)
 
+@app.route("/api/register", methods=["POST"])
+def register():
+    # 获取请求体数据
+    data = request.get_json()
+    team1 = data["team1"]
+    team2 = data["team2"]
+    money = data["money"]
+
+
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
